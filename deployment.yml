@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: bank   
+  template:
+    metadata:
+      labels:
+        app: bank   
+    spec:
+      containers:
+        - name: backend
+          image: sivasai2003/microservicesimagesblood:appimage
+          ports:
+            - containerPort: 80  
+          env:
+           - name: DB_HOST
+             value: mysqldb
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+spec:
+  selector:
+    app: bank   
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80  
+        # Optional: Define a fixed NodePort
+  type: NodePort
