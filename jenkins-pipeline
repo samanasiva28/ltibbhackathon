@@ -1,0 +1,66 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_HUB_USER = 'sivasai2003'
+        APP_IMAGE = 'microservicesimagesblood-app-image'
+        MYSQL_IMAGE = 'microservicesimagesblood-mysql-image'
+        IMAGE_TAG = 'latest'
+    }
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                git branch: 'master', url: 'https://github.com/samanasiva28/ltibbhackathon.git'
+            }
+        }
+
+        stage("SonarQube Analysis") {
+            steps {
+                sh '''
+                /opt/sonar-scanner/bin/sonar-scanner \
+                  -Dsonar.projectKey=sai \
+                  -Dsonar.sources=. \
+                  -Dsonar.host.url=http://35.232.187.37:9000 \
+                  -Dsonar.login=squ_93c973d3cc4ba33749f0710c1386a40a21d64715
+                '''
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                sh "docker build -t $DOCKER_HUB_USER/$APP_IMAGE:$IMAGE_TAG ."
+                sh "docker build -t $DOCKER_HUB_USER/$MYSQL_IMAGE:$IMAGE_TAG -f Dockerfile2 ."
+            }
+        }
+
+        stage('Login to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'ss', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {   
+                    sh "echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin"
+                }
+            }
+        }
+
+        stage('Push Docker Images to Docker Hub') {
+            steps {
+                sh "docker push $DOCKER_HUB_USER/$APP_IMAGE:$IMAGE_TAG"
+                sh "docker push $DOCKER_HUB_USER/$MYSQL_IMAGE:$IMAGE_TAG"
+            }
+        }
+
+        stage("Run Containers") {
+            steps {
+                sh "docker network create blood-net || true"
+                sh "docker run -itd --name mysqldb1 --network blood-net $DOCKER_HUB_USER/$MYSQL_IMAGE:$IMAGE_TAG"
+                sh "docker run -itd --name siva-blood -p 6309:80 --network blood-net $DOCKER_HUB_USER/$APP_IMAGE:$IMAGE_TAG"
+            }
+        }
+    }
+
+    post {
+        always {
+            sh "docker logout"
+        }
+    }
+}
